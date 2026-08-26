@@ -18,6 +18,7 @@ from .i4dAPI import I4D
 from .base_devices import BaseWavefrontSensor, BaseDeformableMirror, BaseCamera
 from .micAPI import BaseAdOpticaDm
 from .piAPI import BasePetalMirror
+from .nacoAPI import NACOMirror
 
 __all__ = [
     "SPLATTEngine",
@@ -28,4 +29,5 @@ __all__ = [
     "BaseAdOpticaDm",
     "BasePetalMirror",
     "BaseCamera",
+    "NACOMirror",
 ]
