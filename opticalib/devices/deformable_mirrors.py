@@ -1045,14 +1045,18 @@ class NACODm(NACOMirror, BaseDeformableMirror):
             dm_config = _rc.get_device_config("DEFORMABLE.MIRRORS", self._name)
             host = dm_config.get("host", [])
             port = dm_config.get("port", [])
+            self._slaveIds = dm_config.get("slave_ids", [])
+            self._borderIds = dm_config.get("border_ids", [])
         except KeyError:
             raise _oe.DeviceNotFoundError(
                 f"Configuration for {self._name} not found in the configuration file."
             )
         self._logger = _SL(the_class=__class__)
         super().__init__(host, port)
+        self._cmd_history = None
         self.set_zeros_to_acts()
         self.is_segmented = False
+        self.has_slaved_acts = len(self._slaveIds) > 0
 
     def get_shape(self) -> _ot.ArrayLike:
         """Retrieve the actuators positions."""
@@ -1062,6 +1066,8 @@ class NACODm(NACOMirror, BaseDeformableMirror):
         self,
         cmd: _ot.ArrayLike,
         differential: bool = False,
+        *,
+        slaving: bool | str = False,
     ) -> None:
         """
         Applies the given command to the DM actuators.
@@ -1072,7 +1078,11 @@ class NACODm(NACOMirror, BaseDeformableMirror):
             Command to be applied to the actuators.
         differential : bool, optional
             If True, the command is applied differentially (added to the current shape).
+        slaving : bool | str, optional
+            Slaving option for the input command. If ``True``, the slaving method
+            is chosen automatically; if a string is provided, it is used as method.
         """
+        cmd = self._apply_slaving(cmd=cmd, slave=slaving)
         if differential:
             shape = self.get_shape()
             cmd = cmd + shape
@@ -1086,7 +1096,7 @@ class NACODm(NACOMirror, BaseDeformableMirror):
         self.set_shape(zero)
 
     def upload_cmd_history(
-        self, tcmdhist: _ot.MatrixLike,
+        self, tcmdhist: _ot.MatrixLike, *, slaving: bool | str = False
     ) -> None:
         """
         Upload a command history to the DM.
@@ -1096,12 +1106,15 @@ class NACODm(NACOMirror, BaseDeformableMirror):
         tcmdhist : np.array
             Command history to be uploaded. Should be a 2D matrix of shape
             (nacts, nmodes).
+        slaving : bool | str, optional
+            Slaving option for the input command history.
         """
         if not _ot.isinstance_(tcmdhist, "MatrixLike"):
             raise _oe.MatrixError(
                 f"Expecting a 2D Matrix of shape (nacts, nmodes), got instead: {tcmdhist.shape}"
             )
-        self.cmdHistory = tcmdhist
+        tcmdhist = self._apply_slaving(cmd=tcmdhist, slave=slaving)
+        self._cmd_history = tcmdhist
 
     def run_cmd_history(
         self,
@@ -1126,10 +1139,11 @@ class NACODm(NACOMirror, BaseDeformableMirror):
         tn : str
             Tracking number of the directory where the images are saved.
         """
-        delay: float = _rc.get_iff_config(key=None).get("sequentialDelay", 0.0)
+        delay: float = _rc.get_iff_config(key=None).get("sequential_delay", 0.0)
         differential: bool = setshape_kwargs.get("differential", True)
+        slaving: bool | str = setshape_kwargs.get("slaving", False)
 
-        if self.cmdHistory is None:
+        if self._cmd_history is None:
             raise _oe.MatrixError("No Command History to run!")
 
         s = self.get_shape()
@@ -1139,10 +1153,10 @@ class NACODm(NACOMirror, BaseDeformableMirror):
 
             if isinstance(wfs[0], (types.FunctionType, types.MethodType)):
                 tn = []
-                for i, cmd in enumerate(self.cmdHistory.T):
+                for i, cmd in enumerate(self._cmd_history.T):
                     if differential:
                         cmd = cmd + s
-                    self.set_shape(cmd)
+                    self.set_shape(cmd, slaving=slaving)
                     if wfs is not None:
                         _time.sleep(delay)
                         img = wfs[0](*wfs[1:])
@@ -1157,14 +1171,14 @@ class NACODm(NACOMirror, BaseDeformableMirror):
                     tn = save
                     datafold = _os.path.join(_opdi, tn)
                     _os.makedirs(datafold, exist_ok=True)
-                print(f"{tn} - {self.cmdHistory.shape[-1]} images to go.")
+                print(f"{tn} - {self._cmd_history.shape[-1]} images to go.")
 
-            for i, cmd in enumerate(self.cmdHistory.T):
-                print(f"{i+1}/{self.cmdHistory.shape[-1]}", end="\r", flush=True)
+            for i, cmd in enumerate(self._cmd_history.T):
+                print(f"{i+1}/{self._cmd_history.shape[-1]}", end="\r", flush=True)
 
                 if differential:
                     cmd = cmd + s
-                self.set_shape(cmd)
+                self.set_shape(cmd, slaving=slaving)
 
                 if wfs is not None:
                     _time.sleep(delay)
@@ -1172,7 +1186,7 @@ class NACODm(NACOMirror, BaseDeformableMirror):
                     _sf(_os.path.join(datafold, f"image_{i:05d}.fits"), img)
 
         # get back to the starting shape
-        self.set_shape(s)
+        self.set_shape(s, slaving=slaving)
         return tn
 
     def visualize_shape(self, cmd: _ot.ArrayLike = None, **kwargs: dict[str, _ot.Any]):

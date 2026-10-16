@@ -37,11 +37,6 @@ class NACOMirror:
         port : int
             Port number for the PLC connection.
 
-        Raises
-        ------
-        Exception
-            Any hardware-level exception raised by ``asdk.DM()`` on
-            connection failure is propagated to the caller.
         """
         self._host = host
         self._port = port
@@ -55,7 +50,8 @@ class NACOMirror:
         self._last_cmd: _t.ArrayLike = _np.zeros(self.n_acts)
         self._name = f"NACO{self.n_acts}"
         self.act_coord = self._init_act_coord()
-        self.cmdHistory = None
+        self._cmd_history = None
+        self.mirrorModes = None
         self.refAct = None
 
     # ------------------------------------------------------------------
