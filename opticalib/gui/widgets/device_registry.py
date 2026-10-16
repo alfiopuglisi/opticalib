@@ -156,6 +156,15 @@ DEVICE_CLASSES: List[DeviceClass] = [
         description="4D processing virtual machine (no acquisition)",
     ),
     DeviceClass(
+        "Wyko",
+        "INTERFEROMETERS",
+        ("wyko",),
+        "none",
+        "Wyko4100",
+        (("ip", "port"),),
+        description="Wyko 4100 interferometer (4Sight, via plico_interferometer)",
+    ),
+    DeviceClass(
         "AlpaoDm",
         "DEFORMABLE.MIRRORS",
         ("alpaodm", "alpao"),
@@ -181,6 +190,15 @@ DEVICE_CLASSES: List[DeviceClass] = [
         "Splatt",
         (("ip", "port"),),
         description="SPLATT deformable mirror",
+    ),
+    DeviceClass(
+        "NACODm",
+        "DEFORMABLE.MIRRORS",
+        ("nacodm", "naco"),
+        "none",
+        "NACODM",
+        (("host", "port"),),
+        description="NACO deformable mirror (PLC via UDP)",
     ),
     DeviceClass(
         "DP",

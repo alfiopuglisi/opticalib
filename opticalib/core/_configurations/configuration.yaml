@@ -45,6 +45,9 @@ DEVICES:
         produce_4dpc: 
         produce: 
         capture: 
+    Wyko4100:
+      ip: 
+      port: 
     4DProcesser1:
       ip: 
       port:
@@ -70,6 +73,11 @@ DEVICES:
       plico_ip: 
       plico_port: 
       diameter: 
+      slave_ids: []
+      border_ids: []
+    NACODM:
+      host: 
+      port: 10000
       slave_ids: []
       border_ids: []
     PetalDM:

@@ -603,3 +603,70 @@ class Processer4D(_4DInterferometer):
         raise AttributeError(
             "acquire_full_frame is not available in Processer4D (processing only)."
         )
+
+
+class Wyko(BaseWavefrontSensor):
+    """
+    Wyko 4100 interferometer, retrofitted with the 4Sight software.
+
+    It is reached through the client of the ``plico_interferometer``
+    package, which talks directly to the 4Sight web service: no plico
+    server is needed. The address is read from the ``Wyko4100`` entry of
+    the ``INTERFEROMETERS`` section when not given.
+    """
+
+    def __init__(self, ip: str = None, port: int = None):
+        """The constructor"""
+        self._name = "Wyko4100"
+        self._logger = _SL(__class__)
+        if ip is None or port is None:
+            from opticalib.core.config import get_section_config
+
+            config = get_section_config("DEVICES", "INTERFEROMETERS")[self._name]
+            ip = config["ip"]
+            port = config["port"]
+        self.ip = ip
+        self.port = int(port)
+        from plico_interferometer import interferometer_4SightFocus_client
+
+        self._interf = interferometer_4SightFocus_client(self.ip, self.port)
+        self._logger.info(
+            f"Wavefront Sensor {self._name} initialized on address {self.ip}:{self.port}"
+        )
+
+    def acquire_map(
+        self, nframes: int = 1, delay: int | float = 0, rebin: int = 1
+    ) -> _ot.ImageData:
+        """
+        Acquires the interferometer image and returns it as a masked array.
+
+        Parameters
+        ----------
+        nframes: int
+            Number of frames to be averaged that produce the measurement.
+        delay: int
+            Delay between images in seconds.
+        rebin: int
+            Rebin factor for the image.
+
+        Returns
+        -------
+        masked_ima: ImageData
+            Wavefront in meters.
+        """
+        self._logger.info(f"Acquiring {nframes} frames with {delay}s delay.")
+        if delay == 0:
+            masked_ima = self._interf.wavefront(nframes)
+        else:
+            image_list = []
+            for __ in range(nframes):
+                image_list.append(self._interf.wavefront(1))
+                _time.sleep(delay)
+            masked_ima = _np.ma.mean(_np.ma.dstack(image_list), 2)
+        return _modeRebinner(masked_ima, rebin)
+
+    def acquire_detector(self, *_, **__):
+        raise AttributeError("acquire_detector is not available for the Wyko.")
+
+    def __repr__(self) -> str:
+        return f"{self._name}(ip={self.ip}, port={self.port})"

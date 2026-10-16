@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import numpy.ma as ma
 
-from opticalib.devices.interferometer import _4DInterferometer
+from opticalib.devices.interferometer import _4DInterferometer, Wyko
 
 
 class Test4DInterferometerStatics:
@@ -91,3 +91,38 @@ class Test4DInterferometerStatics:
         )
 
         np.testing.assert_array_equal(fullimg[0:1, 0:2], img.data)
+
+
+class TestWyko:
+    """Tests for the Wyko, reached through the plico_interferometer client."""
+
+    @staticmethod
+    def _make_wyko(monkeypatch):
+        client = MagicMock()
+        client.wavefront.side_effect = lambda n=1: ma.masked_array(
+            np.full((4, 4), float(n)), mask=np.eye(4, dtype=bool)
+        )
+        factory = MagicMock(return_value=client)
+        monkeypatch.setattr(
+            "plico_interferometer.interferometer_4SightFocus_client", factory
+        )
+        monkeypatch.setattr(
+            "opticalib.core.config.get_section_config",
+            lambda *_: {"Wyko4100": {"ip": "10.0.0.1", "port": "8011"}},
+        )
+        return Wyko(), factory, client
+
+    def test_connects_with_configured_address(self, monkeypatch):
+        wyko, factory, _ = self._make_wyko(monkeypatch)
+        factory.assert_called_once_with("10.0.0.1", 8011)
+        assert wyko._name == "Wyko4100"
+
+    def test_acquire_map(self, monkeypatch):
+        wyko, _, client = self._make_wyko(monkeypatch)
+        img = wyko.acquire_map(nframes=3)
+        client.wavefront.assert_called_once_with(3)
+        assert img.shape == (4, 4)
+        assert img.mask[0, 0] and not img.mask[0, 1]
+        img = wyko.acquire_map(nframes=2, delay=1e-3)
+        assert client.wavefront.call_count == 3
+        assert np.allclose(img.compressed(), 1.0)
