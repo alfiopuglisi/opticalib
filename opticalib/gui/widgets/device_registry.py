@@ -162,7 +162,7 @@ DEVICE_CLASSES: List[DeviceClass] = [
         "none",
         "Wyko4100",
         (("ip", "port"),),
-        description="Wyko 4100 interferometer (4Sight, via plico_interferometer)",
+        description="Wyko 4100 interferometer (4Sight or plico server)",
     ),
     DeviceClass(
         "AlpaoDm",

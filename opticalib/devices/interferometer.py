@@ -494,7 +494,7 @@ class _4DInterferometer(BaseWavefrontSensor):
                     _os.rename(old_file, new_file)
 
     def __repr__(self) -> str:
-        return f"{self._name}(ip={self.ip}, port={self.port})"
+        return f"{self._name}(ip={self.ip}, port={self.port}, server={self.server})"
 
 
 class AccuFiz(_4DInterferometer):
@@ -609,27 +609,36 @@ class Wyko(BaseWavefrontSensor):
     """
     Wyko 4100 interferometer, retrofitted with the 4Sight software.
 
-    It is reached through the client of the ``plico_interferometer``
-    package, which talks directly to the 4Sight web service: no plico
-    server is needed. The address is read from the ``Wyko4100`` entry of
-    the ``INTERFEROMETERS`` section when not given.
+    It is reached through the clients of the ``plico_interferometer``
+    package, either directly to the 4Sight web service (recent 4Sight
+    versions, no plico server needed) or, with ``server=True``, through a
+    ``plico_interferometer_server`` running next to 4Sight 2.23 (typically
+    on port 7300). The address and the ``server`` flag are read from the
+    ``Wyko4100`` entry of the ``INTERFEROMETERS`` section when not given.
     """
 
-    def __init__(self, ip: str = None, port: int = None):
+    def __init__(self, ip: str = None, port: int = None, server: bool = None):
         """The constructor"""
         self._name = "Wyko4100"
         self._logger = _SL(__class__)
-        if ip is None or port is None:
+        if ip is None or port is None or server is None:
             from opticalib.core.config import get_section_config
 
             config = get_section_config("DEVICES", "INTERFEROMETERS")[self._name]
-            ip = config["ip"]
-            port = config["port"]
+            ip = config["ip"] if ip is None else ip
+            port = config["port"] if port is None else port
+            server = config.get("server", False) if server is None else server
         self.ip = ip
         self.port = int(port)
-        from plico_interferometer import interferometer_4SightFocus_client
+        self.server = bool(server)
+        if self.server:
+            from plico_interferometer import interferometer
 
-        self._interf = interferometer_4SightFocus_client(self.ip, self.port)
+            self._interf = interferometer(self.ip, self.port)
+        else:
+            from plico_interferometer import interferometer_4SightFocus_client
+
+            self._interf = interferometer_4SightFocus_client(self.ip, self.port)
         self._logger.info(
             f"Wavefront Sensor {self._name} initialized on address {self.ip}:{self.port}"
         )
@@ -655,7 +664,8 @@ class Wyko(BaseWavefrontSensor):
             Wavefront in meters.
         """
         self._logger.info(f"Acquiring {nframes} frames with {delay}s delay.")
-        if delay == 0:
+        # the 4Sight 2.23 server returns a single frame whatever is asked
+        if delay == 0 and not self.server:
             masked_ima = self._interf.wavefront(nframes)
         else:
             image_list = []
@@ -669,4 +679,4 @@ class Wyko(BaseWavefrontSensor):
         raise AttributeError("acquire_detector is not available for the Wyko.")
 
     def __repr__(self) -> str:
-        return f"{self._name}(ip={self.ip}, port={self.port})"
+        return f"{self._name}(ip={self.ip}, port={self.port}, server={self.server})"

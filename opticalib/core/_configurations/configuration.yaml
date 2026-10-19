@@ -48,6 +48,7 @@ DEVICES:
     Wyko4100:
       ip: 
       port: 
+      server: false
     4DProcesser1:
       ip: 
       port:

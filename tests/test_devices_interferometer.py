@@ -126,3 +126,24 @@ class TestWyko:
         img = wyko.acquire_map(nframes=2, delay=1e-3)
         assert client.wavefront.call_count == 3
         assert np.allclose(img.compressed(), 1.0)
+
+    def test_server_mode(self, monkeypatch):
+        client = MagicMock()
+        client.wavefront.side_effect = lambda n=1: ma.masked_array(
+            np.full((4, 4), 1.0), mask=np.eye(4, dtype=bool)
+        )
+        factory = MagicMock(return_value=client)
+        monkeypatch.setattr("plico_interferometer.interferometer", factory)
+        monkeypatch.setattr(
+            "opticalib.core.config.get_section_config",
+            lambda *_: {
+                "Wyko4100": {"ip": "10.0.0.1", "port": 7300, "server": True}
+            },
+        )
+        wyko = Wyko()
+        factory.assert_called_once_with("10.0.0.1", 7300)
+        assert wyko.server
+        # the server returns one frame per call: averaging is done here
+        img = wyko.acquire_map(nframes=3)
+        assert client.wavefront.call_count == 3
+        assert np.allclose(img.compressed(), 1.0)
